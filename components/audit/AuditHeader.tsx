@@ -28,7 +28,7 @@ export function AuditHeader({
   return (
     <header className="audit-header">
       <div className="brand-lockup">
-        <div className="imx-mark">IMX</div>
+        <div className="imx-mark">EOD</div>
         <div>
           <p>AUDITORÍA CUANTITATIVA DE PROCESOS</p>
           <h1>Flujo General de Atención</h1>
@@ -49,17 +49,17 @@ export function AuditHeader({
           </button>
         ))}
         <button type="button" className="ghost-button" onClick={onOpenHistory}>
-          Historial de corridas
+          Centro de Auditorías
         </button>
         <button
           type="button"
           className="ghost-button"
           onClick={onConfigureStandards}
         >
-          Configurar estándares
+          Estándares Operativos
         </button>
         <button type="button" className="new-run-button" onClick={onNewRun}>
-          Nueva corrida
+          Nueva Auditoría
         </button>
         <span className={`save-indicator save-${saveState}`}>
           {saveState === "saving"

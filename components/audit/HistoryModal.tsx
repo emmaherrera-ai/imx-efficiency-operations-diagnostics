@@ -1,8 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AuditFlowCanvas } from "@/components/workflow/AuditFlowCanvas";
+import { ExecutivePdfReport } from "@/components/audit/ExecutivePdfReport";
 import { exportRunCsv } from "@/lib/csvExport";
+import {
+  buildExecutivePdfFilename,
+  downloadExecutivePdf,
+} from "@/lib/pdfExport";
 import { getProcessOrderForRun } from "@/lib/auditFlow";
 import { getRunSummary } from "@/lib/runSummary";
 import { applyRunSnapshotToProcesses } from "@/lib/standards";
@@ -43,6 +48,9 @@ export function HistoryModal({
   const [date, setDate] = useState("");
   const [detailRun, setDetailRun] = useState<AuditRun | null>(null);
   const [openActionsRunId, setOpenActionsRunId] = useState<string | null>(null);
+  const [pdfRun, setPdfRun] = useState<AuditRun | null>(null);
+  const [generatingPdfRunId, setGeneratingPdfRunId] = useState<string | null>(null);
+  const pdfContainerRef = useRef<HTMLDivElement | null>(null);
 
   const filteredRuns = useMemo(
     () =>
@@ -58,6 +66,38 @@ export function HistoryModal({
     [chain, date, operator, runs, status, store],
   );
 
+  useEffect(() => {
+    if (!pdfRun) {
+      return;
+    }
+
+    let isCancelled = false;
+
+    async function generatePdf() {
+      await waitForReportRender();
+
+      if (isCancelled || !pdfContainerRef.current || !pdfRun) {
+        return;
+      }
+
+      await downloadExecutivePdf(
+        pdfContainerRef.current,
+        buildExecutivePdfFilename(pdfRun.id, pdfRun.date),
+      );
+
+      if (!isCancelled) {
+        setPdfRun(null);
+        setGeneratingPdfRunId(null);
+      }
+    }
+
+    void generatePdf();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [pdfRun]);
+
   if (!isOpen) {
     return null;
   }
@@ -68,7 +108,7 @@ export function HistoryModal({
         <div className="modal-heading">
           <div>
             <p>Registro local</p>
-            <h2>Historial de corridas</h2>
+            <h2>Centro de Auditorías</h2>
           </div>
           <button type="button" className="ghost-button" onClick={onClose}>
             Cerrar
@@ -165,11 +205,15 @@ export function HistoryModal({
                         <button
                           type="button"
                           onClick={() => {
-                            window.open(`/corridas/${run.id}/informe`, "_blank");
+                            setGeneratingPdfRunId(run.id);
+                            setPdfRun(run);
                             setOpenActionsRunId(null);
                           }}
+                          disabled={generatingPdfRunId !== null}
                         >
-                          Exportar informe PDF
+                          {generatingPdfRunId === run.id
+                            ? "Generando PDF..."
+                            : "Generar Informe PDF"}
                         </button>
                         {run.status === "in_progress" ? (
                           <button
@@ -180,7 +224,7 @@ export function HistoryModal({
                               setOpenActionsRunId(null);
                             }}
                           >
-                            Cancelar corrida
+                            Cancelar Auditoría
                           </button>
                         ) : null}
                         <button
@@ -206,9 +250,21 @@ export function HistoryModal({
         </div>
 
         {detailRun ? <RunDetail run={detailRun} onClose={() => setDetailRun(null)} /> : null}
+        {pdfRun ? (
+          <ExecutivePdfReport run={pdfRun} containerRef={pdfContainerRef} />
+        ) : null}
       </section>
     </div>
   );
+}
+
+async function waitForReportRender() {
+  await new Promise<void>((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => resolve());
+    });
+  });
+  await new Promise((resolve) => window.setTimeout(resolve, 900));
 }
 
 function RunDetail({ run, onClose }: { run: AuditRun; onClose: () => void }) {
@@ -226,11 +282,11 @@ function RunDetail({ run, onClose }: { run: AuditRun; onClose: () => void }) {
       <section className="panel-section detail-modal">
         <div className="modal-heading">
           <div>
-            <p>Resumen final</p>
+            <p>Resumen Ejecutivo</p>
             <h2>{run.id}</h2>
           </div>
           <button type="button" className="ghost-button" onClick={onClose}>
-            Volver al historial
+            Volver al centro
           </button>
         </div>
         <div className="detail-tabs" role="tablist" aria-label="Detalle histórico">
@@ -279,15 +335,15 @@ function RunDetail({ run, onClose }: { run: AuditRun; onClose: () => void }) {
             />
             <Detail label="Tiempo estándar" value={`${summary.standardMinutes} min`} />
             <Detail label="Tiempo real" value={`${summary.actualMinutes} min`} />
-            <Detail label="Diferencia" value={`${summary.differenceMinutes} min`} />
-            <Detail label="Desviación" value={`${summary.deviationPercent}%`} />
+            <Detail label="Desviación en minutos" value={`${summary.differenceMinutes} min`} />
+            <Detail label="Desviación porcentual" value={`${summary.deviationPercent}%`} />
             <Detail label="Calificación" value={`${summary.averageScore}`} />
             <Detail
               label="Tipo de cobro"
               value={
                 paymentObservation?.paymentType
                   ? paymentTypeLabelsEs[paymentObservation.paymentType]
-                  : "Sin capturar"
+                  : "Sin registrar"
               }
             />
             <Detail label="Monto" value={formatCurrency(paymentObservation?.paymentAmount)} />

@@ -1,7 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ExecutivePdfReport } from "@/components/audit/ExecutivePdfReport";
 import { getProcessOrderForRun } from "@/lib/auditFlow";
+import {
+  buildExecutivePdfFilename,
+  downloadExecutivePdf,
+} from "@/lib/pdfExport";
 import { getRunSummary } from "@/lib/runSummary";
 import { readRuns } from "@/lib/storage";
 import { applyRunSnapshotToProcesses } from "@/lib/standards";
@@ -24,6 +29,8 @@ type ReportPageProps = {
 export default function AuditReportPage({ params }: ReportPageProps) {
   const [runs, setRuns] = useState<AuditRun[]>([]);
   const [isReady, setIsReady] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const pdfContainerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -45,9 +52,9 @@ export default function AuditReportPage({ params }: ReportPageProps) {
     return (
       <main className="print-report">
         <h1>Informe no encontrado</h1>
-        <p>No se encontró una corrida local con el ID solicitado.</p>
+        <p>No se encontró una auditoría local con el ID solicitado.</p>
         <button type="button" onClick={() => window.location.assign("/")}>
-          Volver al historial
+          Volver al centro de auditorías
         </button>
       </main>
     );
@@ -63,21 +70,38 @@ export default function AuditReportPage({ params }: ReportPageProps) {
   return (
     <main className="print-report">
       <div className="print-toolbar">
-        <button type="button" onClick={() => window.print()}>
-          Imprimir / Guardar como PDF
+        <button
+          type="button"
+          disabled={isGeneratingPdf}
+          onClick={async () => {
+            setIsGeneratingPdf(true);
+            await waitForReportRender();
+
+            if (pdfContainerRef.current) {
+              await downloadExecutivePdf(
+                pdfContainerRef.current,
+                buildExecutivePdfFilename(run.id, run.date),
+              );
+            }
+
+            setIsGeneratingPdf(false);
+          }}
+        >
+          {isGeneratingPdf ? "Generando PDF..." : "Generar Informe PDF"}
         </button>
       </div>
+      <ExecutivePdfReport run={run} containerRef={pdfContainerRef} />
       <section className="report-page">
         <header className="report-header">
           <div>
-            <strong>IMX</strong>
+            <strong>EOD</strong>
             <h1>Informe Ejecutivo de Auditoría Operativa</h1>
           </div>
           <span>Generado: {new Date().toLocaleString("es-MX")}</span>
         </header>
 
         <div className="report-grid">
-          <ReportMetric label="Corrida" value={run.id} />
+          <ReportMetric label="Auditoría" value={run.id} />
           <ReportMetric label="Estado" value={statusLabelsEs[run.status]} />
           <ReportMetric label="Flujo" value={getWorkflowVersion(run)} />
           <ReportMetric label="Tienda" value={`${run.store} · ${run.module}`} />
@@ -111,7 +135,7 @@ export default function AuditReportPage({ params }: ReportPageProps) {
             value={
               paymentObservation?.paymentType
                 ? paymentTypeLabelsEs[paymentObservation.paymentType]
-                : "Sin capturar"
+                : "Sin registrar"
             }
           />
           <ReportMetric
@@ -146,7 +170,7 @@ export default function AuditReportPage({ params }: ReportPageProps) {
                   <small>
                     {observation
                       ? processStatusLabelsEs[observation.status]
-                      : "Sin captura"}
+                      : "Sin registrar"}
                   </small>
                 </article>
               );
@@ -180,6 +204,15 @@ export default function AuditReportPage({ params }: ReportPageProps) {
       </section>
     </main>
   );
+}
+
+async function waitForReportRender() {
+  await new Promise<void>((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => resolve());
+    });
+  });
+  await new Promise((resolve) => window.setTimeout(resolve, 900));
 }
 
 function ReportMetric({ label, value }: { label: string; value: string }) {

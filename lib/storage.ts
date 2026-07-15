@@ -53,7 +53,7 @@ export function readRuns(): SafeStorageResult<AuditRun[]> {
     return {
       value: [],
       ok: false,
-      error: "El historial local no tiene un formato válido.",
+      error: "El centro local de auditorías no tiene un formato válido.",
     };
   }
 

@@ -63,7 +63,7 @@ export function AuditDashboard() {
       <main className="audit-app">
         <div className="audit-header">
           <div className="brand-lockup">
-            <div className="imx-mark">IMX</div>
+            <div className="imx-mark">EOD</div>
             <div>
               <p>AUDITORÍA CUANTITATIVA DE PROCESOS</p>
               <h1>Flujo General de Atención</h1>
@@ -144,7 +144,7 @@ export function AuditDashboard() {
           setIsHistoryOpen(false);
         }}
         onCancelRun={(runId) => {
-          if (window.confirm("Cancelar esta corrida en progreso?")) {
+          if (window.confirm("¿Cancelar esta auditoría en progreso?")) {
             cancelRun(runId);
             setSelectedNodeId(null);
           }

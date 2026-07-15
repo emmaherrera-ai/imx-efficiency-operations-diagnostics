@@ -109,6 +109,6 @@ export const processDefinitions: ProcessDefinition[] = [
     targetExperience: 92,
     status: "optimal",
     description:
-      "Cierre de experiencia, confirmación final y captura de percepción del cliente.",
+      "Cierre de experiencia, confirmación final y registro de percepción del cliente.",
   },
 ];

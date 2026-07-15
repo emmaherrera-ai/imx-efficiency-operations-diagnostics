@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "IMX Efficiency & Operations Diagnostics",
+  title: "Centro de Auditorías Operativas",
   description:
-    "MVP visual para diagnóstico de eficiencia y operación en módulos de servicio.",
+    "Sistema para diagnóstico de eficiencia y operación en módulos de servicio.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",

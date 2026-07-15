@@ -95,10 +95,10 @@ export function StandardsModal({
         <div className="modal-heading">
           <div>
             <p>Configuración global</p>
-            <h2>Configurar estándares</h2>
+            <h2>Estándares Operativos</h2>
             {hasActiveRun ? (
               <span className="subtle-note">
-                Los cambios aplicarán únicamente a nuevas corridas.
+                Los cambios aplicarán únicamente a nuevas auditorías.
               </span>
             ) : null}
           </div>
@@ -184,7 +184,7 @@ export function StandardsModal({
             className="ghost-button"
             onClick={() =>
               downloadJson(
-                `IMX-EOD_respaldo_${new Date().toISOString().slice(0, 10)}.json`,
+                `EOD_respaldo_${new Date().toISOString().slice(0, 10)}.json`,
                 buildBackupPayload(standards, runs),
               )
             }
@@ -208,7 +208,7 @@ export function StandardsModal({
                 }
                 if (
                   window.confirm(
-                    `El respaldo contiene ${parsed.runs.length} corridas y ${parsed.standards.length} estándares. ¿Reemplazar datos locales?`,
+                    `El respaldo contiene ${parsed.runs.length} auditorías y ${parsed.standards.length} estándares. ¿Reemplazar datos locales?`,
                   )
                 ) {
                   replaceAllLocalData(parsed);

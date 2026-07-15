@@ -34,7 +34,7 @@ export function NewRunModal({
 
   const draftId = (() => {
     const date = new Date();
-    return `IMX-${date.getFullYear()}${String(date.getMonth() + 1).padStart(
+    return `AUD-${date.getFullYear()}${String(date.getMonth() + 1).padStart(
       2,
       "0",
     )}${String(date.getDate()).padStart(2, "0")}-AUTO`;
@@ -80,7 +80,7 @@ export function NewRunModal({
 
     if (
       hasDraft &&
-      !window.confirm("Hay datos capturados en el formulario. ¿Cerrar sin crear la corrida?")
+      !window.confirm("Hay datos registrados en el formulario. ¿Cerrar sin crear la auditoría?")
     ) {
       return;
     }
@@ -99,7 +99,7 @@ export function NewRunModal({
         <div className="modal-heading">
           <div>
             <p>Nueva auditoría</p>
-            <h2 id="new-run-title">Crear corrida de campo</h2>
+            <h2 id="new-run-title">Crear auditoría de campo</h2>
           </div>
           <button type="button" className="ghost-button" onClick={handleCancel}>
             Cerrar
@@ -193,7 +193,7 @@ export function NewRunModal({
               Cancelar
             </button>
             <button type="submit" className="primary-button">
-              Iniciar corrida
+              Iniciar auditoría
             </button>
           </div>
         </form>
@@ -239,19 +239,19 @@ function validateInput(input: NewAuditRunInput): NewRunErrors {
   }
 
   if (!input.store.trim()) {
-    errors.store = "Captura la tienda.";
+    errors.store = "Registra la tienda.";
   }
 
   if (!input.module.trim()) {
-    errors.module = "Captura el módulo.";
+    errors.module = "Registra el módulo.";
   }
 
   if (!input.operatorName.trim()) {
-    errors.operatorName = "Captura el nombre del operador.";
+    errors.operatorName = "Registra el nombre del operador.";
   }
 
   if (!input.auditorName.trim()) {
-    errors.auditorName = "Captura el nombre del auditor.";
+    errors.auditorName = "Registra el nombre del auditor.";
   }
 
   if (!input.shift) {

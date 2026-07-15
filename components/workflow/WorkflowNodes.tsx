@@ -87,14 +87,14 @@ export function ProcessNode({ data, selected }: NodeProps<AuditWorkflowNode>) {
         <span>
           {data.timeDifference !== null && data.timeDifference !== undefined
             ? `${data.timeDifference > 0 ? "+" : ""}${data.timeDifference} min`
-            : "Diferencia"}
+            : "Desviación"}
         </span>
         <span>
           {data.captureStatus === "captured"
-            ? "Capturado"
+            ? "Registrado"
             : data.captureStatus === "not_applicable"
               ? "N/A"
-              : "Captura"}
+              : "Registrar"}
         </span>
       </div>
     </article>

@@ -23,17 +23,11 @@ type CsvBuildResult = {
 };
 
 export function exportRunCsv(run: AuditRun) {
-  const { csv, recordCount } = buildRunCsvPayload(run);
+  const { csv } = buildRunCsvPayload(run);
   const safeStore = sanitizeFilePart(run.store);
-  const filename = `IMX-EOD_${sanitizeFilePart(run.id)}_${safeStore}_${run.date}.csv`;
+  const filename = `EOD_${sanitizeFilePart(run.id)}_${safeStore}_${run.date}.csv`;
   const blob = new Blob([`\uFEFF${csv}`], {
     type: "text/csv;charset=utf-8;",
-  });
-
-  console.log("Exportar CSV", {
-    filename,
-    blobSize: blob.size,
-    recordCount,
   });
 
   downloadBlob(blob, filename, csvDownloadErrorMessage);
@@ -49,7 +43,7 @@ function buildRunCsvPayload(run: AuditRun): CsvBuildResult {
   const exportedProcessOrder = getProcessOrderForRun(run);
   const generalRows = [
     ["Sección", "Campo", "Valor"],
-    ["General", "ID de corrida", run.id],
+    ["General", "ID de auditoría", run.id],
     ["General", "Flujo", getWorkflowName(run)],
     ["General", "Versión de flujo", getWorkflowVersion(run)],
     ["General", "Fecha", run.date],
@@ -100,7 +94,7 @@ function buildRunCsvPayload(run: AuditRun): CsvBuildResult {
       "Aplicable",
       "Tiempo estándar",
       "Tiempo real",
-      "Diferencia",
+      "Desviación",
       "Desviación %",
       "Evaluación",
       "Calidad",
@@ -113,7 +107,7 @@ function buildRunCsvPayload(run: AuditRun): CsvBuildResult {
       "Monto de cobro MXN",
       "Observaciones",
       "Motivo N/A",
-      "Fecha captura",
+      "Fecha de registro",
     ],
     ...exportedProcessOrder.map((processId, index) => {
       const process = processes.find((item) => item.id === processId);

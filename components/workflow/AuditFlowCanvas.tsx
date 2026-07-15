@@ -10,7 +10,11 @@ import {
 } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createWorkflowEdges, createWorkflowNodes } from "@/data/workflow";
-import { getObservation, getProcessApplicability } from "@/lib/auditFlow";
+import {
+  getActiveProcessSequence,
+  getObservation,
+  getProcessApplicability,
+} from "@/lib/auditFlow";
 import type {
   AuditRun,
   AuditWorkflowEdge,
@@ -27,6 +31,7 @@ type AuditFlowCanvasProps = {
   activeFilter: StatusFilter;
   activeRun: AuditRun | null;
   processes: ProcessDefinition[];
+  mode?: "interactive" | "report";
 };
 
 const nodeTypes = {
@@ -47,6 +52,7 @@ export function AuditFlowCanvas({
   activeFilter,
   activeRun,
   processes,
+  mode = "interactive",
 }: AuditFlowCanvasProps) {
   const [flowInstance, setFlowInstance] =
     useState<ReactFlowInstance<AuditWorkflowNode, AuditWorkflowEdge> | null>(
@@ -54,6 +60,68 @@ export function AuditFlowCanvas({
     );
   const baseNodes = useMemo(() => createWorkflowNodes(processes), [processes]);
   const baseEdges = useMemo(() => createWorkflowEdges(processes), [processes]);
+  const isReportMode = mode === "report";
+  const activeRouteNodeIds = useMemo(() => {
+    if (!activeRun) {
+      return new Set<string>();
+    }
+
+    return new Set([
+      "inicio",
+      ...getActiveProcessSequence(activeRun),
+      "fin",
+      "solucion",
+      ...(activeRun.selectedSolutionRoute === "available" ? ["prioritario"] : []),
+    ]);
+  }, [activeRun]);
+  const activeRouteEdgeIds = useMemo(() => {
+    if (!activeRun) {
+      return new Set<string>();
+    }
+
+    const ids = new Set([
+      "e-inicio-recepcion",
+      "e-recepcion-clasificacion",
+      "e-clasificacion-investigacion",
+      "e-investigacion-solucion",
+    ]);
+
+    if (activeRun.selectedSolutionRoute === "unavailable") {
+      [
+        "e-solucion-no-disponible",
+        "e-no-disponible-validacion",
+        "e-validacion-cobro",
+        "e-cobro-documentacion",
+        "e-documentacion-confirmacion",
+        "e-confirmacion-fin",
+      ].forEach((id) => ids.add(id));
+    }
+
+    if (activeRun.selectedSolutionRoute === "available") {
+      ids.add("e-solucion-prioritario");
+
+      if (activeRun.selectedPriorityRoute === "standard") {
+        ids.add("e-prioritario-estandar");
+        ids.add("e-estandar-validacion");
+      }
+
+      if (activeRun.selectedPriorityRoute === "specialized") {
+        ids.add("e-prioritario-especializada");
+        ids.add("e-especializada-validacion");
+      }
+
+      if (activeRun.selectedPriorityRoute !== null) {
+        [
+          "e-validacion-cobro",
+          "e-cobro-documentacion",
+          "e-documentacion-confirmacion",
+          "e-confirmacion-fin",
+        ].forEach((id) => ids.add(id));
+      }
+    }
+
+    return ids;
+  }, [activeRun]);
 
   const connectedNodeIds = useMemo(() => {
     if (selectedNodeId === null) {
@@ -92,9 +160,14 @@ export function AuditFlowCanvas({
         node.data.kind === "process" &&
         effectiveStatus !== activeFilter;
       const routeDimmed =
-        activeRun?.status === "in_progress" &&
+        (activeRun?.status === "in_progress" || isReportMode) &&
         node.data.kind === "process" &&
         (applicability === "not_applicable" || applicability === "blocked");
+      const reportDimmed =
+        isReportMode &&
+        activeRun !== null &&
+        !activeRouteNodeIds.has(node.id) &&
+        node.data.kind !== "terminal";
 
       return {
         ...node,
@@ -114,12 +187,21 @@ export function AuditFlowCanvas({
           dimmed:
             filteredOut ||
             routeDimmed ||
+            reportDimmed ||
             (selectedNodeId !== null && !isRelated),
           related: selectedNodeId !== null && connectedNodeIds.has(node.id),
         },
       };
     });
-  }, [activeFilter, activeRun, baseNodes, connectedNodeIds, selectedNodeId]);
+  }, [
+    activeFilter,
+    activeRouteNodeIds,
+    activeRun,
+    baseNodes,
+    connectedNodeIds,
+    isReportMode,
+    selectedNodeId,
+  ]);
 
   const visibleEdges = useMemo<AuditWorkflowEdge[]>(() => {
     return baseEdges.map((edge) => {
@@ -127,15 +209,34 @@ export function AuditFlowCanvas({
         selectedNodeId !== null &&
         (edge.source === selectedNodeId || edge.target === selectedNodeId);
       const isRouteDimmed = isInactiveRouteEdge(edge.source, edge.target, activeRun);
+      const isActiveRoute = activeRouteEdgeIds.has(edge.id);
+      const stroke = isReportMode
+        ? isActiveRoute
+          ? "#38d8ff"
+          : "#294666"
+        : isConnected
+          ? "#38d8ff"
+          : "#294666";
+      const strokeWidth = isReportMode
+        ? isActiveRoute
+          ? 3.2
+          : 1.25
+        : isConnected
+          ? 2.8
+          : 1.45;
 
       return {
         ...edge,
-        animated: isConnected,
+        animated: !isReportMode && isConnected,
         style: {
-          stroke: isConnected ? "#38d8ff" : "#294666",
-          strokeWidth: isConnected ? 2.8 : 1.45,
+          stroke,
+          strokeWidth,
           opacity: isRouteDimmed
             ? 0.16
+            : isReportMode
+              ? isActiveRoute
+                ? 1
+                : 0.28
             : selectedNodeId === null || isConnected
               ? 1
               : 0.42,
@@ -153,7 +254,7 @@ export function AuditFlowCanvas({
         labelBgBorderRadius: 999,
       };
     });
-  }, [activeRun, baseEdges, selectedNodeId]);
+  }, [activeRouteEdgeIds, activeRun, baseEdges, isReportMode, selectedNodeId]);
 
   const centerNode = useCallback(
     (node: AuditWorkflowNode) => {
@@ -189,6 +290,10 @@ export function AuditFlowCanvas({
   }, [onSelectNode]);
 
   useEffect(() => {
+    if (isReportMode) {
+      return;
+    }
+
     if (!selectedNodeId) {
       return;
     }
@@ -197,24 +302,37 @@ export function AuditFlowCanvas({
     if (node) {
       centerNode(node);
     }
-  }, [centerNode, selectedNodeId, visibleNodes]);
+  }, [centerNode, isReportMode, selectedNodeId, visibleNodes]);
+
+  useEffect(() => {
+    if (!isReportMode || !flowInstance) {
+      return;
+    }
+
+    window.setTimeout(() => {
+      void flowInstance.fitView({ padding: 0.1, duration: 0 });
+    }, 60);
+  }, [flowInstance, isReportMode, visibleNodes]);
 
   return (
-    <section className="flow-shell" aria-label="Lienzo del flujo operativo">
+    <section
+      className={`flow-shell ${isReportMode ? "flow-shell-report" : ""}`}
+      aria-label="Lienzo del flujo operativo"
+    >
       <ReactFlow
         nodes={visibleNodes}
         edges={visibleEdges}
         nodeTypes={nodeTypes}
-        onNodeClick={handleNodeClick}
-        onPaneClick={handlePaneClick}
+        onNodeClick={isReportMode ? undefined : handleNodeClick}
+        onPaneClick={isReportMode ? undefined : handlePaneClick}
         onInit={setFlowInstance}
         nodesDraggable={false}
         nodesConnectable={false}
-        elementsSelectable
-        panOnDrag
-        panOnScroll
+        elementsSelectable={!isReportMode}
+        panOnDrag={!isReportMode}
+        panOnScroll={!isReportMode}
         zoomOnScroll={false}
-        zoomOnPinch
+        zoomOnPinch={!isReportMode}
         fitViewOptions={{ padding: 0.26, minZoom: 0.34, maxZoom: 0.76 }}
         minZoom={0.32}
         maxZoom={1.05}
@@ -228,7 +346,8 @@ export function AuditFlowCanvas({
           color="#12304a"
         />
       </ReactFlow>
-      <div className="flow-controls" aria-label="Controles del lienzo">
+      {isReportMode ? null : (
+        <div className="flow-controls" aria-label="Controles del lienzo">
         <button
           type="button"
           aria-label="Acercar"
@@ -259,11 +378,14 @@ export function AuditFlowCanvas({
         >
           Ajustar
         </button>
-      </div>
+        </div>
+      )}
       <div className="flow-vignette" />
-      <p className="canvas-caption">
+      {isReportMode ? null : (
+        <p className="canvas-caption">
         Zoom y desplazamiento activos · nodos bloqueados para auditoría visual
-      </p>
+        </p>
+      )}
     </section>
   );
 }

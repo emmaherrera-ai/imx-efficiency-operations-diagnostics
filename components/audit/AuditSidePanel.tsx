@@ -213,9 +213,9 @@ function RunSummaryPanel({
     : "Sin pendientes";
 
   return (
-    <aside className="side-panel" aria-label="Resumen de corrida activa">
+    <aside className="side-panel" aria-label="Resumen de auditoría activa">
       <div className="panel-section panel-hero">
-        <p>Corrida activa</p>
+        <p>Auditoría Activa</p>
         <h2>{run.id}</h2>
         <span>
           {run.operatorName} · {run.store} · {run.module}
@@ -239,7 +239,7 @@ function RunSummaryPanel({
 
       <div className="metric-grid">
         <Metric label="Aplicables" value={`${metrics.applicableCount}`} />
-        <Metric label="Capturados" value={`${metrics.capturedCount}`} />
+        <Metric label="Registrados" value={`${metrics.capturedCount}`} />
         <Metric label="Progreso" value={`${metrics.progressPercent}%`} />
         <Metric label="Críticos" value={`${metrics.criticalCount}`} emphasis="critical" />
         <Metric label="Tiempo estándar" value={`${metrics.standardMinutes} min`} />
@@ -265,8 +265,8 @@ function RunSummaryPanel({
         <h3>Revisión de cierre</h3>
         <p className="panel-copy">
           {nextPendingTarget
-            ? "Aún existen pendientes antes de cerrar la corrida."
-            : `Lista para cerrar: ${metrics.capturedCount} procesos capturados.`}
+            ? "Aún existen pendientes antes de finalizar la auditoría."
+            : `Lista para finalizar: ${metrics.capturedCount} procesos registrados.`}
         </p>
         <div className="form-field">
           <label htmlFor="generalComments">
@@ -287,14 +287,14 @@ function RunSummaryPanel({
           onClick={() => {
             if (
               window.confirm(
-                `Cerrar corrida ${run.id} con ${metrics.progressPercent}% de avance y ${metrics.criticalCount} críticos?`,
+                `¿Finalizar auditoría ${run.id} con ${metrics.progressPercent}% de avance y ${metrics.criticalCount} críticos?`,
               )
             ) {
               onCompleteRun();
             }
           }}
         >
-          Cerrar corrida
+          Finalizar Auditoría
         </button>
       </section>
 
@@ -304,7 +304,7 @@ function RunSummaryPanel({
         onClick={() => {
           if (
             window.confirm(
-              "La corrida se marcará como Cancelada y conservará los datos capturados. ¿Continuar?",
+              "La auditoría se marcará como Cancelada y conservará los datos registrados. ¿Continuar?",
             )
           ) {
             onCancelRun();
@@ -312,7 +312,7 @@ function RunSummaryPanel({
         }}
         disabled={run.status === "cancelled"}
       >
-        Cancelar corrida
+        Cancelar Auditoría
       </button>
     </aside>
   );
@@ -540,7 +540,7 @@ function ProcessCapturePanel({
   };
 
   return (
-    <aside className="side-panel" aria-label="Captura por proceso">
+    <aside className="side-panel" aria-label="Registro por proceso">
       <div className={`detail-status ${statusClassName[selectedNode.status]}`}>
         {observation?.isApplicable === false
           ? "N/A"
@@ -549,7 +549,7 @@ function ProcessCapturePanel({
             : "Pendiente"}
       </div>
       <div className="panel-section panel-hero">
-        <p>Captura por proceso</p>
+        <p>Registro por proceso</p>
         <h2>{process.name}</h2>
         <span>{process.description}</span>
       </div>
@@ -559,12 +559,12 @@ function ProcessCapturePanel({
         <Detail label="Tiempo estándar" value={`${process.standardMinutes} min`} />
         <Detail label="Experiencia objetivo" value={`${process.targetExperience}/10`} />
         <Detail
-          label="Estado de captura"
+          label="Estado de registro"
           value={
             observation?.isApplicable === false
               ? "No aplicable"
               : observation?.finalScore !== null && observation
-                ? "Capturado"
+                ? "Registrado"
                 : "Pendiente"
           }
         />
@@ -873,14 +873,14 @@ function CancelRunButton({
       onClick={() => {
         if (
           window.confirm(
-            "La corrida se marcará como Cancelada y conservará los datos capturados. ¿Continuar?",
+            "La auditoría se marcará como Cancelada y conservará los datos registrados. ¿Continuar?",
           )
         ) {
           onCancelRun();
         }
       }}
     >
-      Cancelar corrida
+      Cancelar Auditoría
     </button>
   );
 }
@@ -910,14 +910,14 @@ function validateCapture({
 
   if (!isApplicable) {
     if (!nonApplicableReason.trim()) {
-      errors.nonApplicableReason = "Captura el motivo de No aplicable.";
+      errors.nonApplicableReason = "Registra el motivo de No aplicable.";
     }
 
     return errors;
   }
 
   if (!actualTime || Number(actualTime) <= 0) {
-    errors.actualTime = "Captura un tiempo real mayor que cero.";
+    errors.actualTime = "Registra un tiempo real mayor que cero.";
   }
 
   if (
@@ -955,7 +955,7 @@ function validateCapture({
       requiresAmount &&
       (paymentAmount === "" || Number(paymentAmount) < 0)
     ) {
-      errors.paymentAmount = "Captura un monto mayor o igual a 0.";
+      errors.paymentAmount = "Registra un monto mayor o igual a 0.";
     }
 
     if (paymentAmount !== "" && Number(paymentAmount) < 0) {
@@ -994,7 +994,7 @@ function confirmRouteChange(
   }
 
   return window.confirm(
-    "La ruta anterior tiene datos capturados. Al cambiarla se limpiará esa captura y se marcará como No aplicable. ¿Continuar?",
+    "La ruta anterior tiene datos registrados. Al cambiarla se limpiará ese registro y se marcará como No aplicable. ¿Continuar?",
   );
 }
 
