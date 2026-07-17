@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { AuditTimeline } from "@/components/audit/AuditTimeline";
 import {
   buildCapturedObservation,
   buildNotApplicableObservation,
@@ -62,6 +63,9 @@ type AuditSidePanelProps = {
   onCompleteRun: () => void;
   onGeneralCommentsChange: (comments: string) => void;
   onSelectNode: (nodeId: string | null) => void;
+  onToast: (message: string, tone?: "success" | "error" | "info") => void;
+  onProcessTransition: (processId: string, nextNodeId: string | null) => void;
+  currentNodeId: string | null;
   processes: ProcessDefinition[];
 };
 
@@ -85,6 +89,9 @@ export function AuditSidePanel({
   onCompleteRun,
   onGeneralCommentsChange,
   onSelectNode,
+  onToast,
+  onProcessTransition,
+  currentNodeId,
   processes,
 }: AuditSidePanelProps) {
   if (activeRun && selectedNode?.decisionId) {
@@ -96,6 +103,9 @@ export function AuditSidePanel({
         onSolutionRouteChange={onSolutionRouteChange}
         onSelectNode={onSelectNode}
         onCancelRun={onCancelRun}
+        onToast={onToast}
+        currentNodeId={currentNodeId}
+        processes={processes}
       />
     );
   }
@@ -110,6 +120,9 @@ export function AuditSidePanel({
         onSaveObservation={onSaveObservation}
         onSelectNode={onSelectNode}
         onCancelRun={onCancelRun}
+        onToast={onToast}
+        onProcessTransition={onProcessTransition}
+        currentNodeId={currentNodeId}
         processes={processes}
       />
     );
@@ -125,6 +138,9 @@ export function AuditSidePanel({
         onCancelRun={onCancelRun}
         onCompleteRun={onCompleteRun}
         onGeneralCommentsChange={onGeneralCommentsChange}
+        onSelectNode={onSelectNode}
+        currentNodeId={currentNodeId}
+        processes={processes}
       />
     );
   }
@@ -194,6 +210,9 @@ function RunSummaryPanel({
   onCancelRun,
   onCompleteRun,
   onGeneralCommentsChange,
+  onSelectNode,
+  currentNodeId,
+  processes,
 }: Pick<
   AuditSidePanelProps,
   | "metrics"
@@ -202,6 +221,9 @@ function RunSummaryPanel({
   | "onCancelRun"
   | "onCompleteRun"
   | "onGeneralCommentsChange"
+  | "onSelectNode"
+  | "currentNodeId"
+  | "processes"
 > & {
   run: AuditRun;
 }) {
@@ -247,6 +269,13 @@ function RunSummaryPanel({
         <Metric label="Óptimos" value={`${metrics.optimalCount}`} />
         <Metric label="Mejorables" value={`${metrics.improvableCount}`} />
       </div>
+
+      <AuditTimeline
+        run={run}
+        processes={processes}
+        currentNodeId={currentNodeId}
+        onSelectNode={onSelectNode}
+      />
 
       <section className="panel-section">
         <h3>Siguiente pendiente</h3>
@@ -325,6 +354,9 @@ function DecisionPanel({
   onSolutionRouteChange,
   onSelectNode,
   onCancelRun,
+  onToast,
+  currentNodeId,
+  processes,
 }: {
   run: AuditRun;
   selectedNode: WorkflowNodeData;
@@ -332,6 +364,9 @@ function DecisionPanel({
   onSolutionRouteChange: (route: SolutionRoute) => void;
   onSelectNode: (nodeId: string | null) => void;
   onCancelRun: () => void;
+  onToast: (message: string, tone?: "success" | "error" | "info") => void;
+  currentNodeId: string | null;
+  processes: ProcessDefinition[];
 }) {
   const isPriority = selectedNode.decisionId === "priority";
   const disabled = run.status !== "in_progress";
@@ -341,8 +376,15 @@ function DecisionPanel({
       <div className="panel-section panel-hero">
         <p>Decisión de ruta</p>
         <h2>{selectedNode.label}</h2>
-        <span>{selectedNode.description}</span>
+        <span>Selecciona la ruta que corresponde. {selectedNode.description}</span>
       </div>
+
+      <AuditTimeline
+        run={run}
+        processes={processes}
+        currentNodeId={currentNodeId}
+        onSelectNode={onSelectNode}
+      />
 
       {isPriority ? (
         <DecisionButtons
@@ -355,6 +397,7 @@ function DecisionPanel({
           onSelect={(value) => {
             if (confirmRouteChange(run, "priority", value)) {
               onPriorityRouteChange(value);
+              onToast("Ruta seleccionada correctamente");
               onSelectNode(
                 value === "standard"
                   ? "atencion-estandar"
@@ -374,6 +417,7 @@ function DecisionPanel({
           onSelect={(value) => {
             if (confirmRouteChange(run, "solution", value)) {
               onSolutionRouteChange(value);
+              onToast("Ruta seleccionada correctamente");
               onSelectNode(
                 value === "available"
                   ? "prioritario"
@@ -425,6 +469,9 @@ function ProcessCapturePanel({
   onSaveObservation,
   onSelectNode,
   onCancelRun,
+  onToast,
+  onProcessTransition,
+  currentNodeId,
   processes,
 }: {
   run: AuditRun;
@@ -433,6 +480,9 @@ function ProcessCapturePanel({
   onSaveObservation: (observation: AuditObservation) => void;
   onSelectNode: (nodeId: string | null) => void;
   onCancelRun: () => void;
+  onToast: (message: string, tone?: "success" | "error" | "info") => void;
+  onProcessTransition: (processId: string, nextNodeId: string | null) => void;
+  currentNodeId: string | null;
   processes: ProcessDefinition[];
 }) {
   const process = getProcessById(processId, processes);
@@ -462,6 +512,9 @@ function ProcessCapturePanel({
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saveError, setSaveError] = useState("");
+  const [saveFeedback, setSaveFeedback] = useState<
+    "idle" | "saving" | "saved"
+  >("idle");
 
   const omissionWarning = useMemo(() => {
     if (!process || !actualTime) {
@@ -481,6 +534,7 @@ function ProcessCapturePanel({
   const save = (continueAfterSave: boolean) => {
     try {
       setSaveError("");
+      setSaveFeedback("saving");
       const nextErrors = validateCapture({
         actualTime,
         executionRating,
@@ -495,6 +549,7 @@ function ProcessCapturePanel({
       setErrors(nextErrors);
 
       if (Object.keys(nextErrors).length > 0) {
+        setSaveFeedback("idle");
         return;
       }
 
@@ -529,13 +584,23 @@ function ProcessCapturePanel({
       };
 
       onSaveObservation(nextObservation);
+      const nextTarget = continueAfterSave
+        ? getNextPendingTarget(simulatedRun)
+        : processId;
+      onProcessTransition(processId, nextTarget);
+      onToast("Proceso registrado correctamente");
+      setSaveFeedback("saved");
 
-      if (continueAfterSave) {
-        onSelectNode(getNextPendingTarget(simulatedRun));
+      if (continueAfterSave && nextTarget) {
+        window.setTimeout(() => onSelectNode(nextTarget), 260);
       }
+
+      window.setTimeout(() => setSaveFeedback("idle"), 1000);
     } catch (error) {
       console.error("Error al guardar proceso", error);
+      setSaveFeedback("idle");
       setSaveError("No fue posible guardar el proceso. Intenta nuevamente.");
+      onToast("No fue posible guardar. Intenta nuevamente.", "error");
     }
   };
 
@@ -549,10 +614,17 @@ function ProcessCapturePanel({
             : "Pendiente"}
       </div>
       <div className="panel-section panel-hero">
-        <p>Registro por proceso</p>
+        <p>Registro por proceso · Proceso activo</p>
         <h2>{process.name}</h2>
         <span>{process.description}</span>
       </div>
+
+      <AuditTimeline
+        run={run}
+        processes={processes}
+        currentNodeId={currentNodeId}
+        onSelectNode={onSelectNode}
+      />
 
       <div className="detail-list">
         <Detail label="Departamento" value={process.department} />
@@ -611,6 +683,7 @@ function ProcessCapturePanel({
               error={errors.actualTime}
               disabled={!canCapture}
               type="number"
+              inputMode="decimal"
               onChange={setActualTime}
             />
             {omissionWarning ? (
@@ -624,6 +697,7 @@ function ProcessCapturePanel({
               error={errors.executionRating}
               disabled={!canCapture}
               type="number"
+              inputMode="decimal"
               onChange={setExecutionRating}
             />
             <div className="form-field">
@@ -673,18 +747,26 @@ function ProcessCapturePanel({
           <button
             type="button"
             className="ghost-button"
-            disabled={!canCapture}
+            disabled={!canCapture || saveFeedback === "saving"}
             onClick={() => save(false)}
           >
-            Guardar
+            {saveFeedback === "saving"
+              ? "Guardando..."
+              : saveFeedback === "saved"
+                ? "✓ Registrado"
+                : "Registrar"}
           </button>
           <button
             type="button"
             className="primary-button"
-            disabled={!canCapture}
+            disabled={!canCapture || saveFeedback === "saving"}
             onClick={() => save(true)}
           >
-            Guardar y continuar
+            {saveFeedback === "saving"
+              ? "Guardando..."
+              : saveFeedback === "saved"
+                ? "✓ Registrado"
+                : "Guardar y continuar"}
           </button>
         </div>
       </form>

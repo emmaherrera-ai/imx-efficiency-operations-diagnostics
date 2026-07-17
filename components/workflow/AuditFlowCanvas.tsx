@@ -3,6 +3,7 @@
 import {
   Background,
   BackgroundVariant,
+  MarkerType,
   ReactFlow,
   type ReactFlowInstance,
   type NodeMouseHandler,
@@ -32,6 +33,7 @@ type AuditFlowCanvasProps = {
   activeRun: AuditRun | null;
   processes: ProcessDefinition[];
   mode?: "interactive" | "report";
+  recentlyCompletedNodeId?: string | null;
 };
 
 const nodeTypes = {
@@ -53,6 +55,7 @@ export function AuditFlowCanvas({
   activeRun,
   processes,
   mode = "interactive",
+  recentlyCompletedNodeId = null,
 }: AuditFlowCanvasProps) {
   const [flowInstance, setFlowInstance] =
     useState<ReactFlowInstance<AuditWorkflowNode, AuditWorkflowEdge> | null>(
@@ -184,6 +187,8 @@ export function AuditFlowCanvas({
               ? "captured"
               : "pending",
           isApplicable: !isNotApplicable,
+          isCurrent: node.id === selectedNodeId,
+          recentlyCompleted: node.id === recentlyCompletedNodeId,
           dimmed:
             filteredOut ||
             routeDimmed ||
@@ -200,6 +205,7 @@ export function AuditFlowCanvas({
     baseNodes,
     connectedNodeIds,
     isReportMode,
+    recentlyCompletedNodeId,
     selectedNodeId,
   ]);
 
@@ -210,16 +216,16 @@ export function AuditFlowCanvas({
         (edge.source === selectedNodeId || edge.target === selectedNodeId);
       const isRouteDimmed = isInactiveRouteEdge(edge.source, edge.target, activeRun);
       const isActiveRoute = activeRouteEdgeIds.has(edge.id);
-      const stroke = isReportMode
+      const stroke = isReportMode || isActiveRoute
         ? isActiveRoute
           ? "#38d8ff"
           : "#294666"
         : isConnected
           ? "#38d8ff"
           : "#294666";
-      const strokeWidth = isReportMode
+      const strokeWidth = isReportMode || isActiveRoute
         ? isActiveRoute
-          ? 3.2
+          ? 3.15
           : 1.25
         : isConnected
           ? 2.8
@@ -228,18 +234,25 @@ export function AuditFlowCanvas({
       return {
         ...edge,
         animated: !isReportMode && isConnected,
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: stroke,
+          width: 18,
+          height: 18,
+        },
         style: {
           stroke,
           strokeWidth,
           opacity: isRouteDimmed
             ? 0.16
-            : isReportMode
+            : isReportMode || activeRun
               ? isActiveRoute
                 ? 1
-                : 0.28
+                : 0.34
             : selectedNodeId === null || isConnected
               ? 1
               : 0.42,
+          filter: isActiveRoute ? "drop-shadow(0 0 6px rgba(56,216,255,0.32))" : undefined,
         },
         labelStyle: {
           fill: "#dff8ff",

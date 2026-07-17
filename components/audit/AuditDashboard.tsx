@@ -1,10 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AuditFlowCanvas } from "@/components/workflow/AuditFlowCanvas";
+import { AuditContextBar } from "./AuditContextBar";
 import { createWorkflowNodes } from "@/data/workflow";
 import { useActiveAuditRun } from "@/hooks/useActiveAuditRun";
 import { useStandards } from "@/hooks/useStandards";
+import {
+  getCurrentAuditNodeId,
+  getNodeDisplayName,
+} from "@/lib/auditVisual";
 import {
   applyRunSnapshotToProcesses,
   applyStandardsToProcesses,
@@ -14,6 +19,7 @@ import { NewRunModal } from "./NewRunModal";
 import { AuditSidePanel } from "./AuditSidePanel";
 import { StandardsModal } from "./StandardsModal";
 import { HistoryModal } from "./HistoryModal";
+import { ToastStack, type ToastMessage } from "./ToastStack";
 import type { StatusFilter } from "@/types/audit";
 
 export function AuditDashboard() {
@@ -23,6 +29,8 @@ export function AuditDashboard() {
   const [isNewRunOpen, setIsNewRunOpen] = useState(false);
   const [isStandardsOpen, setIsStandardsOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [recentlyCompletedNodeId, setRecentlyCompletedNodeId] = useState<string | null>(null);
   const {
     standards,
     saveStandards,
@@ -49,10 +57,53 @@ export function AuditDashboard() {
   const effectiveProcesses = activeRun
     ? applyRunSnapshotToProcesses(activeRun)
     : applyStandardsToProcesses(standards);
+  const currentNodeId = getCurrentAuditNodeId({
+    selectedNodeId,
+    nextPendingTarget,
+    run: activeRun,
+  });
 
   const selectedNode =
-    createWorkflowNodes(effectiveProcesses).find((node) => node.id === selectedNodeId)
+    createWorkflowNodes(effectiveProcesses).find((node) => node.id === currentNodeId)
       ?.data ?? null;
+
+  const showToast = useCallback(
+    (message: string, tone: ToastMessage["tone"] = "success") => {
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      setToasts((current) => [...current, { id, message, tone }]);
+      window.setTimeout(() => {
+        setToasts((current) => current.filter((toast) => toast.id !== id));
+      }, 2400);
+    },
+    [],
+  );
+
+  const handleSelectNode = useCallback(
+    (nodeId: string | null) => {
+      if (nodeId === null && activeRun) {
+        setSelectedNodeId(currentNodeId ?? nextPendingTarget);
+        return;
+      }
+
+      setSelectedNodeId(nodeId);
+    },
+    [activeRun, currentNodeId, nextPendingTarget],
+  );
+
+  const handleProcessTransition = useCallback(
+    (processId: string, nextNodeId: string | null) => {
+      setRecentlyCompletedNodeId(processId);
+      window.setTimeout(() => setRecentlyCompletedNodeId(null), 1100);
+
+      setSelectedNodeId(nextNodeId);
+    },
+    [],
+  );
+
+  const activeProcessLabel = useMemo(
+    () => getNodeDisplayName(currentNodeId, effectiveProcesses),
+    [currentNodeId, effectiveProcesses],
+  );
 
   useEffect(() => {
     queueMicrotask(() => setIsMounted(true));
@@ -85,13 +136,23 @@ export function AuditDashboard() {
         onOpenHistory={() => setIsHistoryOpen(true)}
         saveState={runSaveState === "saving" ? runSaveState : standardsSaveState}
       />
+      <AuditContextBar
+        run={activeRun}
+        processes={effectiveProcesses}
+        currentNodeId={currentNodeId}
+        nextPendingTarget={nextPendingTarget}
+        capturedCount={metrics.capturedCount}
+        progressPercent={metrics.progressPercent}
+        saveState={runSaveState}
+      />
       <div className="audit-layout">
         <AuditFlowCanvas
-          selectedNodeId={selectedNodeId}
-          onSelectNode={setSelectedNodeId}
+          selectedNodeId={currentNodeId}
+          onSelectNode={handleSelectNode}
           activeFilter={activeFilter}
           activeRun={activeRun}
           processes={effectiveProcesses}
+          recentlyCompletedNodeId={recentlyCompletedNodeId}
         />
         <AuditSidePanel
           selectedNode={selectedNode}
@@ -105,13 +166,18 @@ export function AuditDashboard() {
           onCancelRun={() => {
             cancelRun();
             setSelectedNodeId(null);
+            showToast("Auditoría cancelada", "info");
           }}
           onCompleteRun={() => {
             completeRun();
             setSelectedNodeId(null);
+            showToast("Auditoría finalizada");
           }}
           onGeneralCommentsChange={updateGeneralComments}
-          onSelectNode={setSelectedNodeId}
+          onSelectNode={handleSelectNode}
+          onToast={showToast}
+          onProcessTransition={handleProcessTransition}
+          currentNodeId={currentNodeId}
           processes={effectiveProcesses}
         />
       </div>
@@ -119,9 +185,11 @@ export function AuditDashboard() {
         isOpen={isNewRunOpen}
         onClose={() => setIsNewRunOpen(false)}
         onCreateRun={(input) => {
+          showToast("Preparando auditoría...", "info");
           createRun(input);
-          setSelectedNodeId(null);
+          setSelectedNodeId("recepcion");
           setIsNewRunOpen(false);
+          window.setTimeout(() => showToast("Auditoría lista"), 450);
         }}
       />
       <StandardsModal
@@ -147,6 +215,7 @@ export function AuditDashboard() {
           if (window.confirm("¿Cancelar esta auditoría en progreso?")) {
             cancelRun(runId);
             setSelectedNodeId(null);
+            showToast("Auditoría cancelada", "info");
           }
         }}
         onDeleteRun={(runId) => {
@@ -160,6 +229,11 @@ export function AuditDashboard() {
           }
         }}
       />
+      <ToastStack messages={toasts} />
+      <div className="mobile-process-peek" aria-live="polite">
+        <span>Proceso actual</span>
+        <strong>{activeRun ? activeProcessLabel : "Panel Ejecutivo"}</strong>
+      </div>
     </main>
   );
 }

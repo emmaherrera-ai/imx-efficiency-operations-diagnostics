@@ -54,6 +54,8 @@ export function ProcessNode({ data, selected }: NodeProps<AuditWorkflowNode>) {
     "workflow-node process-node",
     statusClassName[data.status],
     selected ? "is-selected" : "",
+    data.isCurrent ? "is-current" : "",
+    data.recentlyCompleted ? "is-recently-completed" : "",
     data.related ? "is-related" : "",
     data.dimmed ? "is-dimmed" : "",
   ]
@@ -67,6 +69,7 @@ export function ProcessNode({ data, selected }: NodeProps<AuditWorkflowNode>) {
         <span>{data.department}</span>
         <strong>{statusLabels[data.status]}</strong>
       </div>
+      {data.isCurrent ? <div className="node-evaluating">Evaluando</div> : null}
       <h3>{data.label}</h3>
       <dl className="node-metrics">
         <div>
@@ -91,7 +94,7 @@ export function ProcessNode({ data, selected }: NodeProps<AuditWorkflowNode>) {
         </span>
         <span>
           {data.captureStatus === "captured"
-            ? "Registrado"
+            ? "✓ Registrado"
             : data.captureStatus === "not_applicable"
               ? "N/A"
               : "Registrar"}

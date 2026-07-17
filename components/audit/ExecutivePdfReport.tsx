@@ -1,7 +1,10 @@
 "use client";
 
 import type { ReactNode, RefObject } from "react";
-import { AuditFlowCanvas } from "@/components/workflow/AuditFlowCanvas";
+import {
+  getPrintableWorkflowPageCount,
+  PrintableWorkflowDiagram,
+} from "@/components/audit/PrintableWorkflowDiagram";
 import { getApplicableProcessIds } from "@/lib/auditCalculations";
 import { getProcessOrderForRun } from "@/lib/auditFlow";
 import { getRunSummary } from "@/lib/runSummary";
@@ -62,11 +65,31 @@ export function ExecutivePdfReport({
   const recommendations = buildRecommendations(run, summary.criticalCount);
   const risks = buildRisks(run);
   const actions = buildActions(run);
+  const observationPages = buildObservationPages([
+    {
+      title: "Comentarios del Auditor",
+      text: run.generalComments || "Sin comentarios generales registrados.",
+    },
+    { title: "Hallazgos relevantes", text: relevantFindings },
+    { title: "Recomendaciones", text: recommendations },
+    { title: "Riesgos detectados", text: risks },
+    { title: "Acciones sugeridas", text: actions },
+  ]);
+  const flowPageCount = getPrintableWorkflowPageCount(run);
+  const totalPages = 3 + flowPageCount + observationPages.length;
+  const detailPageNumber = 2 + flowPageCount;
+  const observationsStartPageNumber = detailPageNumber + 1;
+  const conclusionPageNumber =
+    observationsStartPageNumber + observationPages.length;
 
   return (
     <div className="pdf-export-stage" aria-hidden="true">
-      <div className="executive-pdf-document" ref={containerRef}>
-        <PdfPage pageNumber={1}>
+      <div
+        className="executive-pdf-document"
+        data-workflow-version={run.workflowVersion ?? "1.0"}
+        ref={containerRef}
+      >
+        <PdfPage pageNumber={1} totalPages={totalPages}>
           <header className="pdf-cover-header">
             <div>
               <strong>COREM OPS - EOD</strong>
@@ -123,24 +146,28 @@ export function ExecutivePdfReport({
           </section>
         </PdfPage>
 
-        <PdfPage pageNumber={2}>
-          <div className="pdf-section-heading">
-            <span>Mapa Operativo</span>
-            <h2>Mapa Operativo de la Auditoría</h2>
-          </div>
-          <div className="pdf-flow-capture">
-            <AuditFlowCanvas
-              selectedNodeId={null}
-              onSelectNode={() => undefined}
-              activeFilter="all"
-              activeRun={run}
+        {Array.from({ length: flowPageCount }, (_, index) => (
+          <PdfPage
+            key={`flow-page-${index}`}
+            pageNumber={index + 2}
+            totalPages={totalPages}
+          >
+            <div className="pdf-section-heading">
+              <span>Mapa Operativo</span>
+              <h2>
+                Mapa Operativo de la Auditoría · Flujo Operativo ({index + 1}/
+                {flowPageCount})
+              </h2>
+            </div>
+            <PrintableWorkflowDiagram
+              pageIndex={index}
               processes={processes}
-              mode="report"
+              run={run}
             />
-          </div>
-        </PdfPage>
+          </PdfPage>
+        ))}
 
-        <PdfPage pageNumber={3}>
+        <PdfPage pageNumber={detailPageNumber} totalPages={totalPages}>
           <div className="pdf-section-heading">
             <span>Detalle</span>
             <h2>Detalle de Procesos</h2>
@@ -214,24 +241,34 @@ export function ExecutivePdfReport({
           </table>
         </PdfPage>
 
-        <PdfPage pageNumber={4}>
-          <div className="pdf-section-heading">
-            <span>Observaciones</span>
-            <h2>Observaciones Generales</h2>
-          </div>
-          <section className="pdf-comment-block">
-            <h3>Comentarios del Auditor</h3>
-            <p>{run.generalComments || "Sin comentarios generales registrados."}</p>
-          </section>
-          <section className="pdf-insight-grid">
-            <InsightBlock title="Hallazgos relevantes" text={relevantFindings} />
-            <InsightBlock title="Recomendaciones" text={recommendations} />
-            <InsightBlock title="Riesgos detectados" text={risks} />
-            <InsightBlock title="Acciones sugeridas" text={actions} />
-          </section>
-        </PdfPage>
+        {observationPages.map((observationPage, index) => (
+          <PdfPage
+            key={`${observationPage.title}-${index}`}
+            pageNumber={observationsStartPageNumber + index}
+            totalPages={totalPages}
+          >
+            <div className="pdf-section-heading">
+              <span>Observaciones</span>
+              <h2>
+                Observaciones Generales ({index + 1}/{observationPages.length})
+              </h2>
+            </div>
+            <section className="pdf-observation-page-block">
+              <div className="pdf-observation-page-title">
+                <h3>{observationPage.title}</h3>
+                {observationPage.partCount > 1 ? (
+                  <span>
+                    Parte {observationPage.partIndex + 1} de{" "}
+                    {observationPage.partCount}
+                  </span>
+                ) : null}
+              </div>
+              <p>{observationPage.text}</p>
+            </section>
+          </PdfPage>
+        ))}
 
-        <PdfPage pageNumber={5}>
+        <PdfPage pageNumber={conclusionPageNumber} totalPages={totalPages}>
           <div className="pdf-section-heading">
             <span>Cierre</span>
             <h2>Resumen Ejecutivo</h2>
@@ -259,9 +296,11 @@ export function ExecutivePdfReport({
 function PdfPage({
   children,
   pageNumber,
+  totalPages,
 }: {
   children: ReactNode;
   pageNumber: number;
+  totalPages: number;
 }) {
   return (
     <section className="pdf-page" data-pdf-page>
@@ -269,7 +308,9 @@ function PdfPage({
       <footer className="pdf-footer">
         <span>COREM OPS - EOD</span>
         <strong>Confidencial</strong>
-        <span>Página {pageNumber} de 5</span>
+        <span>
+          Página {pageNumber} de {totalPages}
+        </span>
       </footer>
     </section>
   );
@@ -290,15 +331,6 @@ function KpiCard({ label, value }: { label: string; value: string }) {
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
-  );
-}
-
-function InsightBlock({ title, text }: { title: string; text: string }) {
-  return (
-    <article className="pdf-insight-block">
-      <h3>{title}</h3>
-      <p>{text}</p>
-    </article>
   );
 }
 
@@ -389,4 +421,155 @@ function formatDuration(startedAt: string, completedAt?: string) {
 
 function round(value: number) {
   return Math.round(value * 10) / 10;
+}
+
+type ObservationSourceBlock = {
+  title: string;
+  text: string;
+};
+
+type ObservationPageBlock = ObservationSourceBlock & {
+  partCount: number;
+  partIndex: number;
+};
+
+const observationPageCharacterLimit = 1450;
+
+function buildObservationPages(
+  blocks: ObservationSourceBlock[],
+): ObservationPageBlock[] {
+  return blocks.flatMap((block) => {
+    const chunks = splitTextIntoPdfPages(
+      normalizeObservationText(block.text),
+      observationPageCharacterLimit,
+    );
+
+    return chunks.map((chunk, index) => ({
+      title: block.title,
+      text: chunk,
+      partCount: chunks.length,
+      partIndex: index,
+    }));
+  });
+}
+
+function normalizeObservationText(text: string): string {
+  return text.trim() || "Sin información registrada.";
+}
+
+function splitTextIntoPdfPages(text: string, characterLimit: number): string[] {
+  if (text.length <= characterLimit) {
+    return [text];
+  }
+
+  const chunks: string[] = [];
+  const paragraphs = text.split(/\n{2,}/);
+  let current = "";
+
+  paragraphs.forEach((paragraph) => {
+    const normalizedParagraph = paragraph.trim();
+    if (!normalizedParagraph) {
+      return;
+    }
+
+    if (
+      current.length > 0 &&
+      `${current}\n\n${normalizedParagraph}`.length <= characterLimit
+    ) {
+      current = `${current}\n\n${normalizedParagraph}`;
+      return;
+    }
+
+    if (normalizedParagraph.length <= characterLimit) {
+      if (current) {
+        chunks.push(current);
+      }
+      current = normalizedParagraph;
+      return;
+    }
+
+    if (current) {
+      chunks.push(current);
+      current = "";
+    }
+
+    splitLongParagraph(normalizedParagraph, characterLimit).forEach((chunk) => {
+      chunks.push(chunk);
+    });
+  });
+
+  if (current) {
+    chunks.push(current);
+  }
+
+  return chunks.length > 0 ? chunks : ["Sin información registrada."];
+}
+
+function splitLongParagraph(paragraph: string, characterLimit: number): string[] {
+  const chunks: string[] = [];
+  const sentences = paragraph.match(/[^.!?]+[.!?]+|\S[^.!?]*$/g) ?? [paragraph];
+  let current = "";
+
+  sentences.forEach((sentence) => {
+    const trimmedSentence = sentence.trim();
+
+    if (!trimmedSentence) {
+      return;
+    }
+
+    if (
+      current.length > 0 &&
+      `${current} ${trimmedSentence}`.length <= characterLimit
+    ) {
+      current = `${current} ${trimmedSentence}`;
+      return;
+    }
+
+    if (trimmedSentence.length <= characterLimit) {
+      if (current) {
+        chunks.push(current);
+      }
+      current = trimmedSentence;
+      return;
+    }
+
+    if (current) {
+      chunks.push(current);
+      current = "";
+    }
+
+    chunks.push(...splitByWords(trimmedSentence, characterLimit));
+  });
+
+  if (current) {
+    chunks.push(current);
+  }
+
+  return chunks;
+}
+
+function splitByWords(text: string, characterLimit: number): string[] {
+  const chunks: string[] = [];
+  let current = "";
+
+  text.split(/\s+/).forEach((word) => {
+    if (!current) {
+      current = word;
+      return;
+    }
+
+    if (`${current} ${word}`.length <= characterLimit) {
+      current = `${current} ${word}`;
+      return;
+    }
+
+    chunks.push(current);
+    current = word;
+  });
+
+  if (current) {
+    chunks.push(current);
+  }
+
+  return chunks;
 }
