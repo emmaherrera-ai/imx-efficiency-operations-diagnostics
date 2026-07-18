@@ -47,6 +47,7 @@ export function AuditDashboard() {
     deleteRun,
     completeRun,
     updateGeneralComments,
+    updateRunGeneralComments,
     continueRun,
     runs,
     metrics,
@@ -227,6 +228,15 @@ export function AuditDashboard() {
             deleteRun(runId);
             setSelectedNodeId(null);
           }
+        }}
+        onUpdateGeneralComments={(runId, comments) => {
+          const updatedRun = updateRunGeneralComments(runId, comments);
+
+          if (updatedRun) {
+            showToast("Comentarios actualizados");
+          }
+
+          return updatedRun;
         }}
       />
       <ToastStack messages={toasts} />

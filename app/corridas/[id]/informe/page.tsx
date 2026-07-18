@@ -2,11 +2,16 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ExecutivePdfReport } from "@/components/audit/ExecutivePdfReport";
+import { PdfReportContentModal } from "@/components/audit/PdfReportContentModal";
 import { getProcessOrderForRun } from "@/lib/auditFlow";
 import {
   buildExecutivePdfFilename,
   downloadExecutivePdf,
 } from "@/lib/pdfExport";
+import {
+  buildDefaultPdfReportContent,
+  type PdfReportContent,
+} from "@/lib/pdfReportContent";
 import { getRunSummary } from "@/lib/runSummary";
 import { readRuns } from "@/lib/storage";
 import { applyRunSnapshotToProcesses } from "@/lib/standards";
@@ -30,6 +35,9 @@ export default function AuditReportPage({ params }: ReportPageProps) {
   const [runs, setRuns] = useState<AuditRun[]>([]);
   const [isReady, setIsReady] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [isPdfContentOpen, setIsPdfContentOpen] = useState(false);
+  const [pdfReportContent, setPdfReportContent] =
+    useState<PdfReportContent | null>(null);
   const pdfContainerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -73,8 +81,29 @@ export default function AuditReportPage({ params }: ReportPageProps) {
         <button
           type="button"
           disabled={isGeneratingPdf}
-          onClick={async () => {
+          onClick={() => setIsPdfContentOpen(true)}
+        >
+          {isGeneratingPdf ? "Generando PDF..." : "Generar Informe PDF"}
+        </button>
+      </div>
+      <ExecutivePdfReport
+        run={run}
+        containerRef={pdfContainerRef}
+        reportContent={pdfReportContent ?? undefined}
+      />
+      {isPdfContentOpen ? (
+        <PdfReportContentModal
+          initialContent={buildDefaultPdfReportContent(
+            run,
+            summary.criticalCount,
+          )}
+          isGenerating={isGeneratingPdf}
+          run={run}
+          onCancel={() => setIsPdfContentOpen(false)}
+          onGenerate={async (content) => {
+            setPdfReportContent(content);
             setIsGeneratingPdf(true);
+            setIsPdfContentOpen(false);
             await waitForReportRender();
 
             if (pdfContainerRef.current) {
@@ -85,12 +114,10 @@ export default function AuditReportPage({ params }: ReportPageProps) {
             }
 
             setIsGeneratingPdf(false);
+            setPdfReportContent(null);
           }}
-        >
-          {isGeneratingPdf ? "Generando PDF..." : "Generar Informe PDF"}
-        </button>
-      </div>
-      <ExecutivePdfReport run={run} containerRef={pdfContainerRef} />
+        />
+      ) : null}
       <section className="report-page">
         <header className="report-header">
           <div>

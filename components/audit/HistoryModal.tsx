@@ -3,11 +3,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AuditFlowCanvas } from "@/components/workflow/AuditFlowCanvas";
 import { ExecutivePdfReport } from "@/components/audit/ExecutivePdfReport";
+import { PdfReportContentModal } from "@/components/audit/PdfReportContentModal";
 import { exportRunCsv } from "@/lib/csvExport";
 import {
   buildExecutivePdfFilename,
   downloadExecutivePdf,
 } from "@/lib/pdfExport";
+import {
+  buildDefaultPdfReportContent,
+  type PdfReportContent,
+} from "@/lib/pdfReportContent";
 import { getProcessOrderForRun } from "@/lib/auditFlow";
 import { getRunSummary } from "@/lib/runSummary";
 import { applyRunSnapshotToProcesses } from "@/lib/standards";
@@ -31,6 +36,10 @@ type HistoryModalProps = {
   onContinueRun: (runId: string) => void;
   onCancelRun: (runId: string) => void;
   onDeleteRun: (runId: string) => void;
+  onUpdateGeneralComments: (
+    runId: string,
+    comments: string,
+  ) => AuditRun | null;
 };
 
 export function HistoryModal({
@@ -40,6 +49,7 @@ export function HistoryModal({
   onContinueRun,
   onCancelRun,
   onDeleteRun,
+  onUpdateGeneralComments,
 }: HistoryModalProps) {
   const [status, setStatus] = useState<AuditRunStatus | "all">("all");
   const [chain, setChain] = useState("all");
@@ -49,6 +59,9 @@ export function HistoryModal({
   const [detailRun, setDetailRun] = useState<AuditRun | null>(null);
   const [openActionsRunId, setOpenActionsRunId] = useState<string | null>(null);
   const [pdfRun, setPdfRun] = useState<AuditRun | null>(null);
+  const [pdfContentRun, setPdfContentRun] = useState<AuditRun | null>(null);
+  const [pdfReportContent, setPdfReportContent] =
+    useState<PdfReportContent | null>(null);
   const [generatingPdfRunId, setGeneratingPdfRunId] = useState<string | null>(null);
   const pdfContainerRef = useRef<HTMLDivElement | null>(null);
 
@@ -87,6 +100,7 @@ export function HistoryModal({
 
       if (!isCancelled) {
         setPdfRun(null);
+        setPdfReportContent(null);
         setGeneratingPdfRunId(null);
       }
     }
@@ -205,15 +219,12 @@ export function HistoryModal({
                         <button
                           type="button"
                           onClick={() => {
-                            setGeneratingPdfRunId(run.id);
-                            setPdfRun(run);
+                            setPdfContentRun(run);
                             setOpenActionsRunId(null);
                           }}
                           disabled={generatingPdfRunId !== null}
                         >
-                          {generatingPdfRunId === run.id
-                            ? "Generando PDF..."
-                            : "Generar Informe PDF"}
+                          Generar Informe PDF
                         </button>
                         {run.status === "in_progress" ? (
                           <button
@@ -249,9 +260,42 @@ export function HistoryModal({
           })}
         </div>
 
-        {detailRun ? <RunDetail run={detailRun} onClose={() => setDetailRun(null)} /> : null}
+        {detailRun ? (
+          <RunDetail
+            run={detailRun}
+            onClose={() => setDetailRun(null)}
+            onUpdateGeneralComments={(comments) => {
+              const updatedRun = onUpdateGeneralComments(detailRun.id, comments);
+
+              if (updatedRun) {
+                setDetailRun(updatedRun);
+              }
+            }}
+          />
+        ) : null}
         {pdfRun ? (
-          <ExecutivePdfReport run={pdfRun} containerRef={pdfContainerRef} />
+          <ExecutivePdfReport
+            run={pdfRun}
+            containerRef={pdfContainerRef}
+            reportContent={pdfReportContent ?? undefined}
+          />
+        ) : null}
+        {pdfContentRun ? (
+          <PdfReportContentModal
+            initialContent={buildDefaultPdfReportContent(
+              pdfContentRun,
+              getRunSummary(pdfContentRun).criticalCount,
+            )}
+            isGenerating={generatingPdfRunId === pdfContentRun.id}
+            run={pdfContentRun}
+            onCancel={() => setPdfContentRun(null)}
+            onGenerate={(content) => {
+              setPdfReportContent(content);
+              setGeneratingPdfRunId(pdfContentRun.id);
+              setPdfRun(pdfContentRun);
+              setPdfContentRun(null);
+            }}
+          />
         ) : null}
       </section>
     </div>
@@ -267,15 +311,43 @@ async function waitForReportRender() {
   await new Promise((resolve) => window.setTimeout(resolve, 900));
 }
 
-function RunDetail({ run, onClose }: { run: AuditRun; onClose: () => void }) {
+function RunDetail({
+  run,
+  onClose,
+  onUpdateGeneralComments,
+}: {
+  run: AuditRun;
+  onClose: () => void;
+  onUpdateGeneralComments: (comments: string) => void;
+}) {
   const summary = getRunSummary(run);
   const [activeTab, setActiveTab] = useState<HistoryTab>("resumen");
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [isEditingComments, setIsEditingComments] = useState(false);
+  const [commentsDraft, setCommentsDraft] = useState({
+    runId: run.id,
+    value: run.generalComments ?? "",
+  });
   const processes = useMemo(() => applyRunSnapshotToProcesses(run), [run]);
   const paymentObservation = summary.paymentObservation;
   const criticalObservations = run.observations.filter(
     (observation) => observation.status === "critical",
   );
+  const currentCommentsDraft =
+    commentsDraft.runId === run.id
+      ? commentsDraft.value
+      : run.generalComments ?? "";
+
+  const handleSaveComments = () => {
+    onUpdateGeneralComments(currentCommentsDraft);
+    setCommentsDraft({ runId: run.id, value: currentCommentsDraft });
+    setIsEditingComments(false);
+  };
+
+  const handleCancelCommentsEdit = () => {
+    setCommentsDraft({ runId: run.id, value: run.generalComments ?? "" });
+    setIsEditingComments(false);
+  };
 
   return (
     <div className="detail-overlay">
@@ -373,11 +445,54 @@ function RunDetail({ run, onClose }: { run: AuditRun; onClose: () => void }) {
 
         {activeTab === "observaciones" ? (
           <div className="observation-list">
-            <section className="panel-section">
-              <h3>Comentarios generales de la auditoría</h3>
-              <p className="panel-copy preserve-lines">
-                {run.generalComments || "Sin comentarios generales."}
-              </p>
+            <section className="panel-section comments-editor-section">
+              <div className="comments-editor-heading">
+                <h3>Comentarios generales de la auditoría</h3>
+                {isEditingComments ? null : (
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    onClick={() => setIsEditingComments(true)}
+                  >
+                    Editar comentarios
+                  </button>
+                )}
+              </div>
+              {isEditingComments ? (
+                <div className="comments-editor">
+                  <textarea
+                    aria-label="Editar comentarios generales de la auditoría"
+                    value={currentCommentsDraft}
+                    onChange={(event) =>
+                      setCommentsDraft({
+                        runId: run.id,
+                        value: event.target.value,
+                      })
+                    }
+                    rows={7}
+                  />
+                  <div className="comments-editor-actions">
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      onClick={handleCancelCommentsEdit}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={handleSaveComments}
+                    >
+                      Guardar comentarios
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="panel-copy preserve-lines">
+                  {run.generalComments || "Sin comentarios generales."}
+                </p>
+              )}
             </section>
             {getProcessOrderForRun(run).map((processId) => {
               const process = processes.find((item) => item.id === processId);

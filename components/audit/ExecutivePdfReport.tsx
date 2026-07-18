@@ -7,6 +7,10 @@ import {
 } from "@/components/audit/PrintableWorkflowDiagram";
 import { getApplicableProcessIds } from "@/lib/auditCalculations";
 import { getProcessOrderForRun } from "@/lib/auditFlow";
+import {
+  buildDefaultPdfReportContent,
+  type PdfReportContent,
+} from "@/lib/pdfReportContent";
 import { getRunSummary } from "@/lib/runSummary";
 import { applyRunSnapshotToProcesses } from "@/lib/standards";
 import {
@@ -19,6 +23,7 @@ import type { AuditRun, ProcessStatus } from "@/types/audit";
 type ExecutivePdfReportProps = {
   run: AuditRun;
   containerRef: RefObject<HTMLDivElement | null>;
+  reportContent?: PdfReportContent;
 };
 
 const statusClassName: Record<ProcessStatus, string> = {
@@ -31,6 +36,7 @@ const statusClassName: Record<ProcessStatus, string> = {
 export function ExecutivePdfReport({
   run,
   containerRef,
+  reportContent,
 }: ExecutivePdfReportProps) {
   const summary = getRunSummary(run);
   const processes = applyRunSnapshotToProcesses(run);
@@ -61,19 +67,23 @@ export function ExecutivePdfReport({
     0,
     Math.min(100, round(100 - Math.abs(summary.deviationPercent))),
   );
-  const relevantFindings = buildRelevantFindings(run);
-  const recommendations = buildRecommendations(run, summary.criticalCount);
-  const risks = buildRisks(run);
-  const actions = buildActions(run);
+  const effectiveReportContent =
+    reportContent ?? buildDefaultPdfReportContent(run, summary.criticalCount);
   const observationPages = buildObservationPages([
     {
       title: "Comentarios del Auditor",
-      text: run.generalComments || "Sin comentarios generales registrados.",
+      text: effectiveReportContent.auditorComments,
     },
-    { title: "Hallazgos relevantes", text: relevantFindings },
-    { title: "Recomendaciones", text: recommendations },
-    { title: "Riesgos detectados", text: risks },
-    { title: "Acciones sugeridas", text: actions },
+    {
+      title: "Hallazgos relevantes",
+      text: effectiveReportContent.relevantFindings,
+    },
+    { title: "Recomendaciones", text: effectiveReportContent.recommendations },
+    { title: "Riesgos detectados", text: effectiveReportContent.risks },
+    {
+      title: "Acciones sugeridas",
+      text: effectiveReportContent.suggestedActions,
+    },
   ]);
   const flowPageCount = getPrintableWorkflowPageCount(run);
   const totalPages = 3 + flowPageCount + observationPages.length;
@@ -332,51 +342,6 @@ function KpiCard({ label, value }: { label: string; value: string }) {
       <strong>{value}</strong>
     </div>
   );
-}
-
-function buildRelevantFindings(run: AuditRun) {
-  const criticalNotes = run.observations
-    .filter((observation) => observation.status === "critical")
-    .map((observation) => observation.notes || observation.nonApplicableReason)
-    .filter(Boolean);
-
-  if (criticalNotes.length > 0) {
-    return criticalNotes.join(" ");
-  }
-
-  return run.generalComments || "No se registraron hallazgos críticos específicos.";
-}
-
-function buildRecommendations(run: AuditRun, criticalCount: number) {
-  if (run.generalComments) {
-    return run.generalComments;
-  }
-
-  if (criticalCount > 0) {
-    return "Priorizar la revisión de procesos críticos y validar acciones correctivas con responsables operativos.";
-  }
-
-  return "Mantener monitoreo periódico del flujo y reforzar los estándares operativos vigentes.";
-}
-
-function buildRisks(run: AuditRun) {
-  const criticalProcesses = run.observations.filter(
-    (observation) => observation.status === "critical",
-  );
-
-  if (criticalProcesses.length > 0) {
-    return "Existen riesgos operativos asociados a procesos críticos, tiempos fuera de estándar o calidad no conforme.";
-  }
-
-  return run.generalComments || "No se detectaron riesgos críticos durante la auditoría.";
-}
-
-function buildActions(run: AuditRun) {
-  if (run.generalComments) {
-    return run.generalComments;
-  }
-
-  return "Dar seguimiento a las desviaciones identificadas y documentar avances en la siguiente auditoría operativa.";
 }
 
 function buildConclusion(averageScore: number, criticalCount: number) {

@@ -1292,6 +1292,104 @@ textarea:focus-visible {
   gap: 10px;
 }
 
+.comments-editor-section {
+  display: grid;
+  gap: 12px;
+}
+
+.comments-editor-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.comments-editor-heading h3 {
+  margin: 0;
+}
+
+.comments-editor {
+  display: grid;
+  gap: 10px;
+}
+
+.comments-editor textarea {
+  width: 100%;
+  min-height: 150px;
+  border: 1px solid rgba(93, 136, 173, 0.28);
+  background: rgba(2, 10, 20, 0.68);
+  color: #f4fbff;
+  padding: 10px;
+  resize: vertical;
+  font: inherit;
+  line-height: 1.45;
+}
+
+.comments-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.pdf-content-overlay {
+  z-index: 34;
+  padding: 22px;
+}
+
+.pdf-content-modal {
+  width: min(920px, 100%);
+  max-height: min(88vh, 820px);
+  overflow: auto;
+  display: grid;
+  gap: 16px;
+}
+
+.pdf-content-modal .modal-heading span {
+  display: block;
+  margin-top: 6px;
+  color: #8fb1ca;
+  font-size: 0.78rem;
+}
+
+.pdf-content-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.pdf-content-field {
+  display: grid;
+  gap: 7px;
+}
+
+.pdf-content-field:first-child {
+  grid-column: 1 / -1;
+}
+
+.pdf-content-field span {
+  color: #9fb9cf;
+  font-size: 0.72rem;
+  font-weight: 780;
+  text-transform: uppercase;
+}
+
+.pdf-content-field textarea {
+  width: 100%;
+  border: 1px solid rgba(93, 136, 173, 0.28);
+  background: rgba(2, 10, 20, 0.68);
+  color: #f4fbff;
+  padding: 10px;
+  resize: vertical;
+  font: inherit;
+  line-height: 1.45;
+}
+
+.pdf-content-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 .observation-card {
   display: grid;
   gap: 6px;

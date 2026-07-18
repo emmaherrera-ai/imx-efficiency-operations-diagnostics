@@ -255,6 +255,25 @@ export function useActiveAuditRun(standards: ProcessStandardConfig[]) {
     [activeRun, upsertRun],
   );
 
+  const updateRunGeneralComments = useCallback(
+    (runId: string, comments: string): AuditRun | null => {
+      const run = runs.find((item) => item.id === runId);
+
+      if (!run) {
+        return null;
+      }
+
+      const updatedRun = {
+        ...run,
+        generalComments: comments.trim(),
+      };
+
+      upsertRun(updatedRun, activeRunId);
+      return updatedRun;
+    },
+    [activeRunId, runs, upsertRun],
+  );
+
   const continueRun = useCallback((runId: string) => {
     setActiveRunId(runId);
     writeActiveRunId(runId);
@@ -286,6 +305,7 @@ export function useActiveAuditRun(standards: ProcessStandardConfig[]) {
     deleteRun,
     completeRun,
     updateGeneralComments,
+    updateRunGeneralComments,
     continueRun,
     replaceRuns,
     metrics,
